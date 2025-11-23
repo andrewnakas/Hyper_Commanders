@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hyper Commanders - Strategy Game</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚔️</text></svg>">
+</head>
+<body>
+    <div id="app">
+        <!-- Main Menu -->
+        <div id="menu-screen" class="screen active">
+            <div class="menu-container">
+                <h1 class="game-title">HYPER COMMANDERS</h1>
+                <p class="subtitle">A Real-Time Strategy Game</p>
+
+                <div class="menu-buttons">
+                    <button id="btn-vs-ai" class="menu-btn primary">Play vs AI</button>
+                    <button id="btn-create-game" class="menu-btn">Create Online Game</button>
+                    <button id="btn-join-game" class="menu-btn">Join Online Game</button>
+                </div>
+
+                <div id="online-options" class="hidden">
+                    <div class="input-group">
+                        <label for="game-code">Game Code:</label>
+                        <input type="text" id="game-code" placeholder="Enter game code..." maxlength="8">
+                    </div>
+                    <button id="btn-connect" class="menu-btn secondary">Connect</button>
+                    <button id="btn-back" class="menu-btn small">Back</button>
+                </div>
+
+                <div id="waiting-room" class="hidden">
+                    <p>Your Game Code: <span id="your-code" class="code-display"></span></p>
+                    <p class="waiting-text">Waiting for opponent...</p>
+                    <div class="loader"></div>
+                    <button id="btn-cancel" class="menu-btn small">Cancel</button>
+                </div>
+
+                <div class="instructions">
+                    <h3>How to Play</h3>
+                    <ul>
+                        <li>Click a tile to select it, then click an adjacent tile to move</li>
+                        <li>Capture territory by moving your army into enemy tiles</li>
+                        <li>Your General and Cities generate troops every turn</li>
+                        <li>All your land generates +1 troop every 25 turns</li>
+                        <li>Capture the enemy General to win!</li>
+                    </ul>
+                    <p class="controls-hint">Controls: Click to select/move, or use arrow keys after selecting</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Game Screen -->
+        <div id="game-screen" class="screen">
+            <div class="game-header">
+                <div class="player-info player-1">
+                    <span class="player-color"></span>
+                    <span class="player-name">You</span>
+                    <span class="player-army">Army: <span id="p1-army">0</span></span>
+                    <span class="player-land">Land: <span id="p1-land">0</span></span>
+                </div>
+                <div class="game-info">
+                    <span id="turn-counter">Turn: 1</span>
+                </div>
+                <div class="player-info player-2">
+                    <span class="player-color"></span>
+                    <span class="player-name">Opponent</span>
+                    <span class="player-army">Army: <span id="p2-army">0</span></span>
+                    <span class="player-land">Land: <span id="p2-land">0</span></span>
+                </div>
+            </div>
+
+            <div id="game-container">
+                <canvas id="game-canvas"></canvas>
+            </div>
+
+            <div class="game-footer">
+                <button id="btn-surrender" class="game-btn danger">Surrender</button>
+                <div id="game-status"></div>
+                <button id="btn-toggle-queue" class="game-btn">Queue: ON</button>
+            </div>
+        </div>
+
+        <!-- Game Over Screen -->
+        <div id="gameover-screen" class="screen">
+            <div class="gameover-container">
+                <h2 id="gameover-title">Game Over</h2>
+                <p id="gameover-message"></p>
+                <button id="btn-play-again" class="menu-btn primary">Play Again</button>
+                <button id="btn-main-menu" class="menu-btn">Main Menu</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- PeerJS for WebRTC multiplayer -->
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <script type="module" src="js/main.js"></script>
+</body>
+</html>
