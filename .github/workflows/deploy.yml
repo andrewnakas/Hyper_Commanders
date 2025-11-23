@@ -2,9 +2,9 @@
 name: Deploy to GitHub Pages
 
 on:
-  # Runs on pushes targeting the default branch
+  # Runs on pushes targeting the claude branch
   push:
-    branches: ["main", "master"]
+    branches: ["claude/generals-game-github-pages-01Ng7WQxLy3LkxUrbh4MkGbY"]
 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
