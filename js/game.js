@@ -43,6 +43,7 @@ export class Game {
         this.map = [];
         this.turn = 0;
         this.selectedTile = null;
+        this.queueOrigin = null; // The tile where queued moves start from
         this.moveQueue = [];
         this.queueEnabled = true;
         this.gameOver = false;
@@ -215,6 +216,11 @@ export class Game {
         if (this.moveQueue.length > 0) {
             const move = this.moveQueue.shift();
             this.executeMove(move.fromX, move.fromY, move.toX, move.toY, this.playerNumber);
+
+            // Clear queue origin when queue is empty
+            if (this.moveQueue.length === 0) {
+                this.queueOrigin = null;
+            }
         }
 
         // Army growth
@@ -350,6 +356,8 @@ export class Game {
         // Select new tile if it's visible and ours
         if (this.isVisible(x, y) && tile.owner === this.playerNumber) {
             this.selectedTile = { x, y };
+            // Clear any existing queue when selecting a new tile
+            this.clearMoveQueue();
         } else {
             this.selectedTile = null;
         }
@@ -358,30 +366,45 @@ export class Game {
     moveSelected(dx, dy) {
         if (!this.selectedTile) return;
 
-        const newX = this.selectedTile.x + dx;
-        const newY = this.selectedTile.y + dy;
+        // Determine the position we're queuing from
+        let fromX, fromY;
 
-        if (this.inBounds(newX, newY)) {
-            const from = this.getTile(this.selectedTile.x, this.selectedTile.y);
-            const to = this.getTile(newX, newY);
+        if (this.moveQueue.length > 0) {
+            // Queue from the last move's destination
+            const lastMove = this.moveQueue[this.moveQueue.length - 1];
+            fromX = lastMove.toX;
+            fromY = lastMove.toY;
+        } else {
+            // Queue from selected tile
+            fromX = this.selectedTile.x;
+            fromY = this.selectedTile.y;
 
-            // Check if this is a valid move to queue
-            if (from && to &&
-                from.owner === this.playerNumber &&
-                from.army > 1 &&
-                to.type !== TILE.MOUNTAIN) {
-
-                // Queue the move
-                this.queueMove(this.selectedTile.x, this.selectedTile.y, newX, newY);
-
-                // Update selection to follow the path
-                this.selectedTile = { x: newX, y: newY };
+            // Validate that the origin is valid for moving
+            const origin = this.getTile(fromX, fromY);
+            if (!origin || origin.owner !== this.playerNumber || origin.army <= 1) {
+                return;
             }
+
+            // Set the queue origin
+            this.queueOrigin = { x: fromX, y: fromY };
         }
+
+        const toX = fromX + dx;
+        const toY = fromY + dy;
+
+        // Check if destination is valid
+        if (!this.inBounds(toX, toY)) return;
+
+        const to = this.getTile(toX, toY);
+        if (!to || to.type === TILE.MOUNTAIN) return;
+
+        // Queue the move
+        this.queueMove(fromX, fromY, toX, toY);
     }
 
     clearMoveQueue() {
         this.moveQueue = [];
+        this.queueOrigin = null;
     }
 
     getStats(player) {
