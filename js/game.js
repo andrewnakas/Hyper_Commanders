@@ -57,6 +57,9 @@ export class Game {
         this.onStateChange = null;
         this.onMove = null;
 
+        this.lastClickTime = 0;
+        this.lastClickTile = null;
+
         this.setupCanvas();
         this.bindEvents();
     }
@@ -350,14 +353,56 @@ export class Game {
         }
     }
 
-    selectTile(x, y) {
+    selectTile(x, y, isDoubleClick = false) {
         const tile = this.getTile(x, y);
         if (!tile) return;
 
         if (this.selectedTile) {
             // Check if clicking the same tile
             if (this.selectedTile.x === x && this.selectedTile.y === y) {
-                // Clicking same tile - do nothing, keep selection and queue
+                // Double-click: split army and move half
+                if (isDoubleClick && tile.owner === this.playerNumber && tile.army > 1 && this.moveQueue.length > 0) {
+                    const move = this.moveQueue[0]; // Get first queued move
+                    const from = this.getTile(move.fromX, move.fromY);
+                    const to = this.getTile(move.toX, move.toY);
+
+                    if (from && to && from.owner === this.playerNumber && from.army > 1 && to.type !== TILE.MOUNTAIN) {
+                        // Move half the army (rounded down)
+                        const halfArmy = Math.floor(from.army / 2);
+                        const remainingArmy = from.army - halfArmy;
+
+                        from.army = remainingArmy;
+
+                        if (to.owner === this.playerNumber) {
+                            to.army += halfArmy;
+                        } else if (to.owner === PLAYER.NONE && to.type !== TILE.CITY) {
+                            to.owner = this.playerNumber;
+                            to.army = halfArmy;
+                        } else {
+                            // Combat with half army
+                            if (halfArmy > to.army) {
+                                const remaining = halfArmy - to.army;
+                                if (to.type === TILE.GENERAL) {
+                                    this.captureGeneral(to.owner, this.playerNumber);
+                                    to.type = TILE.CITY;
+                                }
+                                to.owner = this.playerNumber;
+                                to.army = remaining;
+                            } else {
+                                to.army -= halfArmy;
+                            }
+                        }
+
+                        // Remove first move from queue since we executed it
+                        this.moveQueue.shift();
+                        if (this.moveQueue.length === 0) {
+                            this.queueOrigin = null;
+                        }
+
+                        this.updateVisibility();
+                    }
+                }
+                // Single click same tile - do nothing, keep selection and queue
                 return;
             }
 
@@ -395,6 +440,27 @@ export class Game {
     moveSelected(dx, dy) {
         if (!this.selectedTile) return;
 
+        const currentTile = this.getTile(this.selectedTile.x, this.selectedTile.y);
+        const newX = this.selectedTile.x + dx;
+        const newY = this.selectedTile.y + dy;
+
+        // Check if current selection is on a tile we can't queue from
+        // (not ours, or ours but has only 1 army)
+        const canQueueFromHere = currentTile &&
+                                 currentTile.owner === this.playerNumber &&
+                                 currentTile.army > 1;
+
+        if (!canQueueFromHere && this.moveQueue.length === 0) {
+            // Just move the selection, don't queue
+            if (this.inBounds(newX, newY)) {
+                const targetTile = this.getTile(newX, newY);
+                if (targetTile && targetTile.type !== TILE.MOUNTAIN && this.isVisible(newX, newY)) {
+                    this.selectedTile = { x: newX, y: newY };
+                }
+            }
+            return;
+        }
+
         // Determine the position we're queuing from
         let fromX, fromY;
 
@@ -407,12 +473,6 @@ export class Game {
             // Queue from selected tile
             fromX = this.selectedTile.x;
             fromY = this.selectedTile.y;
-
-            // Validate that the origin is valid for moving
-            const origin = this.getTile(fromX, fromY);
-            if (!origin || origin.owner !== this.playerNumber || origin.army <= 1) {
-                return;
-            }
 
             // Set the queue origin
             this.queueOrigin = { x: fromX, y: fromY };
@@ -610,7 +670,23 @@ export class Game {
             const x = Math.floor((e.clientX - rect.left) * scaleX / TILE_SIZE);
             const y = Math.floor((e.clientY - rect.top) * scaleY / TILE_SIZE);
 
-            this.selectTile(x, y);
+            // Detect double-click (within 300ms)
+            const now = Date.now();
+            const isDoubleClick = this.lastClickTile &&
+                                  this.lastClickTile.x === x &&
+                                  this.lastClickTile.y === y &&
+                                  (now - this.lastClickTime) < 300;
+
+            if (isDoubleClick) {
+                this.selectTile(x, y, true);
+                this.lastClickTile = null;
+                this.lastClickTime = 0;
+            } else {
+                this.selectTile(x, y, false);
+                this.lastClickTile = { x, y };
+                this.lastClickTime = now;
+            }
+
             this.render();
         });
 
