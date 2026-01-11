@@ -227,6 +227,12 @@ export class Game {
 
             if (isValidMove) {
                 this.executeMove(move.fromX, move.fromY, move.toX, move.toY, this.playerNumber);
+
+                // Update selected tile to follow the army to the destination
+                // This keeps the selection at the "head" of the moving army
+                if (this.queueOrigin) {
+                    this.selectedTile = { x: move.toX, y: move.toY };
+                }
             } else {
                 // Invalid move - clear entire queue
                 this.clearMoveQueue();
