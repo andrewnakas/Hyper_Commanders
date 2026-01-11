@@ -334,6 +334,12 @@ export class Game {
         if (!tile) return;
 
         if (this.selectedTile) {
+            // Check if clicking the same tile
+            if (this.selectedTile.x === x && this.selectedTile.y === y) {
+                // Clicking same tile - do nothing, keep selection and queue
+                return;
+            }
+
             // Try to move
             if (this.isAdjacent(this.selectedTile.x, this.selectedTile.y, x, y)) {
                 const from = this.getTile(this.selectedTile.x, this.selectedTile.y);
@@ -355,9 +361,11 @@ export class Game {
 
         // Select new tile if it's visible and ours
         if (this.isVisible(x, y) && tile.owner === this.playerNumber) {
+            // Only clear queue if selecting a different tile
+            if (!this.selectedTile || this.selectedTile.x !== x || this.selectedTile.y !== y) {
+                this.clearMoveQueue();
+            }
             this.selectedTile = { x, y };
-            // Clear any existing queue when selecting a new tile
-            this.clearMoveQueue();
         } else {
             this.selectedTile = null;
         }
@@ -455,12 +463,19 @@ export class Game {
                 const explored = this.isExplored(x, y);
 
                 // Background
-                if (!visible && !explored) {
+                if (tile.type === TILE.MOUNTAIN) {
+                    // Mountains always visible
+                    if (!visible && !explored) {
+                        ctx.fillStyle = '#1a1a1a'; // Dark mountain in fog
+                    } else if (!visible && explored) {
+                        ctx.fillStyle = '#2a2a2a'; // Explored mountain
+                    } else {
+                        ctx.fillStyle = COLORS.MOUNTAIN; // Visible mountain
+                    }
+                } else if (!visible && !explored) {
                     ctx.fillStyle = COLORS.FOG;
                 } else if (!visible && explored) {
                     ctx.fillStyle = COLORS.FOG_EXPLORED;
-                } else if (tile.type === TILE.MOUNTAIN) {
-                    ctx.fillStyle = COLORS.MOUNTAIN;
                 } else if (tile.owner !== PLAYER.NONE) {
                     ctx.fillStyle = COLORS[tile.owner];
                 } else if (tile.type === TILE.CITY) {
@@ -471,7 +486,7 @@ export class Game {
 
                 ctx.fillRect(px + 1, py + 1, TILE_SIZE - 2, TILE_SIZE - 2);
 
-                if (visible || (explored && tile.type === TILE.MOUNTAIN)) {
+                if (visible || tile.type === TILE.MOUNTAIN) {
                     // Draw tile icon
                     if (tile.type === TILE.MOUNTAIN) {
                         ctx.fillStyle = '#666';
@@ -511,6 +526,15 @@ export class Game {
                     ctx.strokeStyle = COLORS.SELECTED;
                     ctx.lineWidth = 3;
                     ctx.strokeRect(px + 2, py + 2, TILE_SIZE - 4, TILE_SIZE - 4);
+                }
+
+                // Queue origin highlight
+                if (this.queueOrigin && this.queueOrigin.x === x && this.queueOrigin.y === y && this.moveQueue.length > 0) {
+                    ctx.strokeStyle = 'rgba(255, 215, 0, 0.6)';
+                    ctx.lineWidth = 2;
+                    ctx.setLineDash([5, 5]);
+                    ctx.strokeRect(px + 4, py + 4, TILE_SIZE - 8, TILE_SIZE - 8);
+                    ctx.setLineDash([]);
                 }
             }
         }
