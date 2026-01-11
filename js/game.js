@@ -215,7 +215,22 @@ export class Game {
         // Process move queue
         if (this.moveQueue.length > 0) {
             const move = this.moveQueue.shift();
-            this.executeMove(move.fromX, move.fromY, move.toX, move.toY, this.playerNumber);
+            const from = this.getTile(move.fromX, move.fromY);
+            const to = this.getTile(move.toX, move.toY);
+
+            // Validate move before executing
+            const isValidMove = from &&
+                                to &&
+                                from.owner === this.playerNumber &&
+                                from.army > 1 &&
+                                to.type !== TILE.MOUNTAIN;
+
+            if (isValidMove) {
+                this.executeMove(move.fromX, move.fromY, move.toX, move.toY, this.playerNumber);
+            } else {
+                // Invalid move - clear entire queue
+                this.clearMoveQueue();
+            }
 
             // Clear queue origin when queue is empty
             if (this.moveQueue.length === 0) {
