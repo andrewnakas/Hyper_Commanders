@@ -362,8 +362,26 @@ export class Game {
         const newY = this.selectedTile.y + dy;
 
         if (this.inBounds(newX, newY)) {
-            this.selectTile(newX, newY);
+            const from = this.getTile(this.selectedTile.x, this.selectedTile.y);
+            const to = this.getTile(newX, newY);
+
+            // Check if this is a valid move to queue
+            if (from && to &&
+                from.owner === this.playerNumber &&
+                from.army > 1 &&
+                to.type !== TILE.MOUNTAIN) {
+
+                // Queue the move
+                this.queueMove(this.selectedTile.x, this.selectedTile.y, newX, newY);
+
+                // Update selection to follow the path
+                this.selectedTile = { x: newX, y: newY };
+            }
         }
+    }
+
+    clearMoveQueue() {
+        this.moveQueue = [];
     }
 
     getStats(player) {
@@ -474,25 +492,43 @@ export class Game {
             }
         }
 
-        // Draw move queue preview
-        if (this.moveQueue.length > 0 && this.selectedTile) {
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
-            ctx.lineWidth = 2;
-            ctx.setLineDash([5, 5]);
-
+        // Draw move queue preview with arrows
+        if (this.moveQueue.length > 0) {
             for (const move of this.moveQueue) {
                 const fromPx = move.fromX * TILE_SIZE + TILE_SIZE / 2;
                 const fromPy = move.fromY * TILE_SIZE + TILE_SIZE / 2;
                 const toPx = move.toX * TILE_SIZE + TILE_SIZE / 2;
                 const toPy = move.toY * TILE_SIZE + TILE_SIZE / 2;
 
+                // Calculate arrow direction
+                const dx = toPx - fromPx;
+                const dy = toPy - fromPy;
+                const angle = Math.atan2(dy, dx);
+
+                // Draw arrow line
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+                ctx.lineWidth = 3;
                 ctx.beginPath();
                 ctx.moveTo(fromPx, fromPy);
                 ctx.lineTo(toPx, toPy);
                 ctx.stroke();
-            }
 
-            ctx.setLineDash([]);
+                // Draw arrowhead
+                const arrowSize = 8;
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+                ctx.beginPath();
+                ctx.moveTo(toPx, toPy);
+                ctx.lineTo(
+                    toPx - arrowSize * Math.cos(angle - Math.PI / 6),
+                    toPy - arrowSize * Math.sin(angle - Math.PI / 6)
+                );
+                ctx.lineTo(
+                    toPx - arrowSize * Math.cos(angle + Math.PI / 6),
+                    toPy - arrowSize * Math.sin(angle + Math.PI / 6)
+                );
+                ctx.closePath();
+                ctx.fill();
+            }
         }
     }
 
@@ -512,6 +548,14 @@ export class Game {
 
         document.addEventListener('keydown', (e) => {
             if (this.gameOver) return;
+
+            // Clear move queue with 'q' key
+            if (e.key === 'q' || e.key === 'Q') {
+                e.preventDefault();
+                this.clearMoveQueue();
+                this.render();
+                return;
+            }
 
             const keyMap = {
                 'ArrowUp': [0, -1],
