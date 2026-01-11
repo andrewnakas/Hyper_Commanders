@@ -16,14 +16,26 @@ export const TILE = {
 export const PLAYER = {
     NONE: 0,
     ONE: 1,
-    TWO: 2
+    TWO: 2,
+    THREE: 3,
+    FOUR: 4,
+    FIVE: 5,
+    SIX: 6,
+    SEVEN: 7,
+    EIGHT: 8
 };
 
 // Colors
 export const COLORS = {
     [PLAYER.NONE]: '#444',
-    [PLAYER.ONE]: '#4a90d9',
-    [PLAYER.TWO]: '#d94a4a',
+    [PLAYER.ONE]: '#4a90d9',   // Blue
+    [PLAYER.TWO]: '#d94a4a',   // Red
+    [PLAYER.THREE]: '#4ad94a', // Green
+    [PLAYER.FOUR]: '#d9d94a',  // Yellow
+    [PLAYER.FIVE]: '#d94ad9',  // Magenta
+    [PLAYER.SIX]: '#4ad9d9',   // Cyan
+    [PLAYER.SEVEN]: '#d9944a', // Orange
+    [PLAYER.EIGHT]: '#9a4ad9', // Purple
     MOUNTAIN: '#333',
     CITY_NEUTRAL: '#888',
     FOG: '#1a1a1a',
@@ -33,11 +45,12 @@ export const COLORS = {
 };
 
 export class Game {
-    constructor(canvas, isHost = true, playerNumber = PLAYER.ONE) {
+    constructor(canvas, isHost = true, playerNumber = PLAYER.ONE, playerCount = 2) {
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d');
         this.isHost = isHost;
         this.playerNumber = playerNumber;
+        this.playerCount = playerCount;
         this.opponentNumber = playerNumber === PLAYER.ONE ? PLAYER.TWO : PLAYER.ONE;
 
         this.map = [];
@@ -48,8 +61,13 @@ export class Game {
         this.queueEnabled = true;
         this.gameOver = false;
         this.winner = null;
+        this.alivePlayers = new Set();
 
-        this.generals = { [PLAYER.ONE]: null, [PLAYER.TWO]: null };
+        this.generals = {};
+        for (let i = 1; i <= playerCount; i++) {
+            this.generals[i] = null;
+            this.alivePlayers.add(i);
+        }
         this.visibility = new Set();
         this.explored = new Set();
 
@@ -111,37 +129,31 @@ export class Game {
             }
         }
 
-        // Place generals (at least 15 tiles apart)
-        const placeGeneral = (player, preferredSide) => {
-            let bestX, bestY;
-            let attempts = 0;
+        // Place generals
+        if (this.playerCount === 2) {
+            // 1v1: place on left and right sides
+            this.placeGeneralAtSide(PLAYER.ONE, 'left', random);
+            this.placeGeneralAtSide(PLAYER.TWO, 'right', random);
+        } else {
+            // FFA: place in a circle around the map
+            const centerX = MAP_SIZE / 2;
+            const centerY = MAP_SIZE / 2;
+            const radius = MAP_SIZE / 3;
 
-            do {
-                if (preferredSide === 'left') {
-                    bestX = 2 + Math.floor(random() * (MAP_SIZE / 3));
-                } else {
-                    bestX = Math.floor(MAP_SIZE * 2 / 3) + Math.floor(random() * (MAP_SIZE / 3 - 2));
-                }
-                bestY = 2 + Math.floor(random() * (MAP_SIZE - 4));
-                attempts++;
-            } while (
-                (this.map[bestY][bestX].type !== TILE.EMPTY ||
-                (this.generals[PLAYER.ONE] && this.distance(bestX, bestY, this.generals[PLAYER.ONE].x, this.generals[PLAYER.ONE].y) < 15)) &&
-                attempts < 100
-            );
+            for (let i = 1; i <= this.playerCount; i++) {
+                const angle = (2 * Math.PI * (i - 1)) / this.playerCount;
+                const preferredX = Math.floor(centerX + radius * Math.cos(angle));
+                const preferredY = Math.floor(centerY + radius * Math.sin(angle));
 
-            this.map[bestY][bestX].type = TILE.GENERAL;
-            this.map[bestY][bestX].owner = player;
-            this.map[bestY][bestX].army = 1;
-            this.generals[player] = { x: bestX, y: bestY };
-        };
-
-        placeGeneral(PLAYER.ONE, 'left');
-        placeGeneral(PLAYER.TWO, 'right');
+                this.placeGeneralNear(i, preferredX, preferredY, random);
+            }
+        }
 
         // Clear mountains near generals
-        for (const player of [PLAYER.ONE, PLAYER.TWO]) {
+        for (let player = 1; player <= this.playerCount; player++) {
             const gen = this.generals[player];
+            if (!gen) continue;
+
             for (let dy = -2; dy <= 2; dy++) {
                 for (let dx = -2; dx <= 2; dx++) {
                     const nx = gen.x + dx;
@@ -156,6 +168,63 @@ export class Game {
         }
 
         this.updateVisibility();
+    }
+
+    placeGeneralAtSide(player, side, random) {
+        let bestX, bestY;
+        let attempts = 0;
+
+        do {
+            if (side === 'left') {
+                bestX = 2 + Math.floor(random() * (MAP_SIZE / 3));
+            } else {
+                bestX = Math.floor(MAP_SIZE * 2 / 3) + Math.floor(random() * (MAP_SIZE / 3 - 2));
+            }
+            bestY = 2 + Math.floor(random() * (MAP_SIZE - 4));
+            attempts++;
+        } while (
+            (this.map[bestY][bestX].type !== TILE.EMPTY || !this.isGeneralFarEnough(bestX, bestY, player)) &&
+            attempts < 100
+        );
+
+        this.map[bestY][bestX].type = TILE.GENERAL;
+        this.map[bestY][bestX].owner = player;
+        this.map[bestY][bestX].army = 1;
+        this.generals[player] = { x: bestX, y: bestY };
+    }
+
+    placeGeneralNear(player, preferredX, preferredY, random) {
+        let bestX, bestY;
+        let attempts = 0;
+        const searchRadius = 5;
+
+        do {
+            bestX = preferredX + Math.floor((random() - 0.5) * searchRadius * 2);
+            bestY = preferredY + Math.floor((random() - 0.5) * searchRadius * 2);
+            bestX = Math.max(2, Math.min(MAP_SIZE - 3, bestX));
+            bestY = Math.max(2, Math.min(MAP_SIZE - 3, bestY));
+            attempts++;
+        } while (
+            (this.map[bestY][bestX].type !== TILE.EMPTY || !this.isGeneralFarEnough(bestX, bestY, player)) &&
+            attempts < 200
+        );
+
+        this.map[bestY][bestX].type = TILE.GENERAL;
+        this.map[bestY][bestX].owner = player;
+        this.map[bestY][bestX].army = 1;
+        this.generals[player] = { x: bestX, y: bestY };
+    }
+
+    isGeneralFarEnough(x, y, currentPlayer) {
+        const minDistance = this.playerCount === 2 ? 15 : 8;
+
+        for (let player = 1; player < currentPlayer; player++) {
+            const gen = this.generals[player];
+            if (gen && this.distance(x, y, gen.x, gen.y) < minDistance) {
+                return false;
+            }
+        }
+        return true;
     }
 
     seededRandom(seed) {
@@ -319,8 +388,8 @@ export class Game {
     }
 
     captureGeneral(loser, winner) {
-        this.gameOver = true;
-        this.winner = winner;
+        // Remove loser from alive players
+        this.alivePlayers.delete(loser);
 
         // Transfer all of loser's territory to winner
         for (let y = 0; y < MAP_SIZE; y++) {
@@ -331,8 +400,14 @@ export class Game {
             }
         }
 
-        if (this.onGameOver) {
-            this.onGameOver(winner);
+        // Check if only one player remains (game over)
+        if (this.alivePlayers.size === 1) {
+            this.gameOver = true;
+            this.winner = Array.from(this.alivePlayers)[0];
+
+            if (this.onGameOver) {
+                this.onGameOver(this.winner);
+            }
         }
     }
 
@@ -425,10 +500,11 @@ export class Game {
             }
         }
 
-        // Select new tile if it's visible and ours
-        if (this.isVisible(x, y) && tile.owner === this.playerNumber) {
-            // Only clear queue if selecting a different tile
-            if (!this.selectedTile || this.selectedTile.x !== x || this.selectedTile.y !== y) {
+        // Select any visible tile (not just owned tiles)
+        if (this.isVisible(x, y)) {
+            // Clear queue when selecting a different tile, or selecting a tile we can't queue from
+            const canQueue = tile.owner === this.playerNumber && tile.army > 1;
+            if (!canQueue || (this.selectedTile && (this.selectedTile.x !== x || this.selectedTile.y !== y))) {
                 this.clearMoveQueue();
             }
             this.selectedTile = { x, y };

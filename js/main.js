@@ -5,11 +5,12 @@ import { NetworkManager } from './network.js';
 class HyperCommanders {
     constructor() {
         this.game = null;
-        this.ai = null;
+        this.aiPlayers = []; // Array of AI opponents
         this.network = null;
         this.gameLoop = null;
         this.renderLoop = null;
         this.isMultiplayer = false;
+        this.isFFA = false;
         this.mapSeed = null;
 
         this.screens = {
@@ -38,6 +39,7 @@ class HyperCommanders {
     setupEventListeners() {
         // Menu buttons
         document.getElementById('btn-vs-ai').addEventListener('click', () => this.startVsAI());
+        document.getElementById('btn-ffa').addEventListener('click', () => this.startFFA());
         document.getElementById('btn-create-game').addEventListener('click', () => this.showCreateGame());
         document.getElementById('btn-join-game').addEventListener('click', () => this.showJoinGame());
         document.getElementById('btn-connect').addEventListener('click', () => this.connectToGame());
@@ -68,9 +70,26 @@ class HyperCommanders {
     // Menu actions
     startVsAI() {
         this.isMultiplayer = false;
+        this.isFFA = false;
         this.mapSeed = Date.now();
-        this.initGame(true, PLAYER.ONE);
-        this.ai = new AI(this.game, PLAYER.TWO);
+        this.initGame(true, PLAYER.ONE, 2);
+        this.aiPlayers = [new AI(this.game, PLAYER.TWO)];
+        this.startGameLoop();
+        this.showScreen('game');
+    }
+
+    startFFA() {
+        this.isMultiplayer = false;
+        this.isFFA = true;
+        this.mapSeed = Date.now();
+        this.initGame(true, PLAYER.ONE, 8);
+
+        // Create AI for players 2-8
+        this.aiPlayers = [];
+        for (let i = 2; i <= 8; i++) {
+            this.aiPlayers.push(new AI(this.game, i));
+        }
+
         this.startGameLoop();
         this.showScreen('game');
     }
@@ -165,8 +184,8 @@ class HyperCommanders {
     }
 
     // Game initialization
-    initGame(isHost, playerNumber) {
-        this.game = new Game(this.elements.canvas, isHost, playerNumber);
+    initGame(isHost, playerNumber, playerCount = 2) {
+        this.game = new Game(this.elements.canvas, isHost, playerNumber, playerCount);
         this.game.generateMap(this.mapSeed);
 
         this.game.onGameOver = (winner) => {
@@ -226,9 +245,9 @@ class HyperCommanders {
         this.gameLoop = setInterval(() => {
             this.game.tick();
 
-            // AI tick
-            if (this.ai) {
-                this.ai.tick();
+            // AI tick for all AI players
+            for (const ai of this.aiPlayers) {
+                ai.tick();
             }
 
             this.updateStats();
@@ -298,9 +317,16 @@ class HyperCommanders {
 
         this.elements.gameoverTitle.textContent = isVictory ? 'VICTORY!' : 'DEFEAT';
         this.elements.gameoverTitle.className = isVictory ? 'victory' : 'defeat';
-        this.elements.gameoverMessage.textContent = isVictory
-            ? 'You have captured the enemy general!'
-            : 'Your general has been captured.';
+
+        if (this.isFFA) {
+            this.elements.gameoverMessage.textContent = isVictory
+                ? 'You are the last commander standing!'
+                : 'Your general has been captured. Better luck next time!';
+        } else {
+            this.elements.gameoverMessage.textContent = isVictory
+                ? 'You have captured the enemy general!'
+                : 'Your general has been captured.';
+        }
 
         // Do final render showing all tiles
         this.game.render();
@@ -314,8 +340,11 @@ class HyperCommanders {
         if (this.isMultiplayer) {
             // For multiplayer, return to menu
             this.returnToMenu();
+        } else if (this.isFFA) {
+            // For FFA game, start new FFA game
+            this.startFFA();
         } else {
-            // For AI game, start new game
+            // For 1v1 AI game, start new 1v1 game
             this.startVsAI();
         }
     }
@@ -329,8 +358,9 @@ class HyperCommanders {
         }
 
         this.game = null;
-        this.ai = null;
+        this.aiPlayers = [];
         this.isMultiplayer = false;
+        this.isFFA = false;
 
         this.hideOnlineOptions();
         this.showScreen('menu');
