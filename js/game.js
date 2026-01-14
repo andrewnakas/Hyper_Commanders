@@ -78,6 +78,18 @@ export class Game {
         this.lastClickTime = 0;
         this.lastClickTile = null;
 
+        // Zoom and pan
+        this.zoom = 1;
+        this.panX = 0;
+        this.panY = 0;
+        this.isPanning = false;
+        this.lastPanX = 0;
+        this.lastPanY = 0;
+
+        // Touch controls
+        this.touchStartTile = null;
+        this.touchDragPath = [];
+
         this.setupCanvas();
         this.bindEvents();
     }
@@ -85,6 +97,52 @@ export class Game {
     setupCanvas() {
         this.canvas.width = MAP_SIZE * TILE_SIZE;
         this.canvas.height = MAP_SIZE * TILE_SIZE;
+
+        // Center the view on the player's general when available
+        this.centerOnGeneral();
+    }
+
+    centerOnGeneral() {
+        if (this.generals[this.playerNumber]) {
+            const gen = this.generals[this.playerNumber];
+            const canvasRect = this.canvas.getBoundingClientRect();
+            this.panX = canvasRect.width / 2 - (gen.x * TILE_SIZE + TILE_SIZE / 2) * this.zoom;
+            this.panY = canvasRect.height / 2 - (gen.y * TILE_SIZE + TILE_SIZE / 2) * this.zoom;
+        }
+    }
+
+    setZoom(newZoom, centerX = null, centerY = null) {
+        const oldZoom = this.zoom;
+        this.zoom = Math.max(0.5, Math.min(3, newZoom));
+
+        // Zoom towards a point (mouse/touch position)
+        if (centerX !== null && centerY !== null) {
+            const scale = this.zoom / oldZoom;
+            this.panX = centerX - (centerX - this.panX) * scale;
+            this.panY = centerY - (centerY - this.panY) * scale;
+        }
+    }
+
+    screenToWorld(screenX, screenY) {
+        return {
+            x: (screenX - this.panX) / this.zoom,
+            y: (screenY - this.panY) / this.zoom
+        };
+    }
+
+    worldToScreen(worldX, worldY) {
+        return {
+            x: worldX * this.zoom + this.panX,
+            y: worldY * this.zoom + this.panY
+        };
+    }
+
+    getTileAtScreen(screenX, screenY) {
+        const world = this.screenToWorld(screenX, screenY);
+        return {
+            x: Math.floor(world.x / TILE_SIZE),
+            y: Math.floor(world.y / TILE_SIZE)
+        };
     }
 
     generateMap(seed = null) {
@@ -611,6 +669,11 @@ export class Game {
         const ctx = this.ctx;
         ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
+        // Save context and apply zoom/pan transformations
+        ctx.save();
+        ctx.translate(this.panX, this.panY);
+        ctx.scale(this.zoom, this.zoom);
+
         for (let y = 0; y < MAP_SIZE; y++) {
             for (let x = 0; x < MAP_SIZE; x++) {
                 const tile = this.map[y][x];
@@ -734,37 +797,180 @@ export class Game {
                 ctx.fill();
             }
         }
+
+        // Restore context
+        ctx.restore();
     }
 
     bindEvents() {
+        // Mouse click
         this.canvas.addEventListener('click', (e) => {
-            if (this.gameOver) return;
+            if (this.gameOver || this.isPanning) return;
 
             const rect = this.canvas.getBoundingClientRect();
-            const scaleX = this.canvas.width / rect.width;
-            const scaleY = this.canvas.height / rect.height;
-            const x = Math.floor((e.clientX - rect.left) * scaleX / TILE_SIZE);
-            const y = Math.floor((e.clientY - rect.top) * scaleY / TILE_SIZE);
+            const screenX = (e.clientX - rect.left) * (this.canvas.width / rect.width);
+            const screenY = (e.clientY - rect.top) * (this.canvas.height / rect.height);
+            const tile = this.getTileAtScreen(screenX, screenY);
 
             // Detect double-click (within 300ms)
             const now = Date.now();
             const isDoubleClick = this.lastClickTile &&
-                                  this.lastClickTile.x === x &&
-                                  this.lastClickTile.y === y &&
+                                  this.lastClickTile.x === tile.x &&
+                                  this.lastClickTile.y === tile.y &&
                                   (now - this.lastClickTime) < 300;
 
             if (isDoubleClick) {
-                this.selectTile(x, y, true);
+                this.selectTile(tile.x, tile.y, true);
                 this.lastClickTile = null;
                 this.lastClickTime = 0;
             } else {
-                this.selectTile(x, y, false);
-                this.lastClickTile = { x, y };
+                this.selectTile(tile.x, tile.y, false);
+                this.lastClickTile = { x: tile.x, y: tile.y };
                 this.lastClickTime = now;
             }
 
             this.render();
         });
+
+        // Mouse panning
+        this.canvas.addEventListener('mousedown', (e) => {
+            if (e.button === 2 || e.ctrlKey || e.shiftKey) { // Right click or Ctrl/Shift + click
+                e.preventDefault();
+                this.isPanning = true;
+                this.lastPanX = e.clientX;
+                this.lastPanY = e.clientY;
+            }
+        });
+
+        this.canvas.addEventListener('mousemove', (e) => {
+            if (this.isPanning) {
+                const dx = e.clientX - this.lastPanX;
+                const dy = e.clientY - this.lastPanY;
+                this.panX += dx;
+                this.panY += dy;
+                this.lastPanX = e.clientX;
+                this.lastPanY = e.clientY;
+                this.render();
+            }
+        });
+
+        this.canvas.addEventListener('mouseup', () => {
+            this.isPanning = false;
+        });
+
+        this.canvas.addEventListener('mouseleave', () => {
+            this.isPanning = false;
+        });
+
+        // Prevent context menu
+        this.canvas.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+        });
+
+        // Mouse wheel zoom
+        this.canvas.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const rect = this.canvas.getBoundingClientRect();
+            const mouseX = (e.clientX - rect.left) * (this.canvas.width / rect.width);
+            const mouseY = (e.clientY - rect.top) * (this.canvas.height / rect.height);
+
+            const delta = e.deltaY > 0 ? 0.9 : 1.1;
+            this.setZoom(this.zoom * delta, mouseX, mouseY);
+            this.render();
+        }, { passive: false });
+
+        // Touch controls
+        let touchStartTime = 0;
+        let lastTouchDistance = 0;
+
+        this.canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            touchStartTime = Date.now();
+
+            if (e.touches.length === 1) {
+                // Single touch - start drag to queue or select
+                const rect = this.canvas.getBoundingClientRect();
+                const touch = e.touches[0];
+                const screenX = (touch.clientX - rect.left) * (this.canvas.width / rect.width);
+                const screenY = (touch.clientY - rect.top) * (this.canvas.height / rect.height);
+                const tile = this.getTileAtScreen(screenX, screenY);
+
+                this.touchStartTile = { x: tile.x, y: tile.y };
+                this.touchDragPath = [{ x: tile.x, y: tile.y }];
+
+                // Select the tile
+                this.selectTile(tile.x, tile.y, false);
+                this.render();
+            } else if (e.touches.length === 2) {
+                // Two finger - start pinch zoom
+                const dx = e.touches[0].clientX - e.touches[1].clientX;
+                const dy = e.touches[0].clientY - e.touches[1].clientY;
+                lastTouchDistance = Math.sqrt(dx * dx + dy * dy);
+            }
+        }, { passive: false });
+
+        this.canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+
+            if (e.touches.length === 1 && this.touchStartTile) {
+                // Drag to queue moves
+                const rect = this.canvas.getBoundingClientRect();
+                const touch = e.touches[0];
+                const screenX = (touch.clientX - rect.left) * (this.canvas.width / rect.width);
+                const screenY = (touch.clientY - rect.top) * (this.canvas.height / rect.height);
+                const tile = this.getTileAtScreen(screenX, screenY);
+
+                const lastTile = this.touchDragPath[this.touchDragPath.length - 1];
+
+                if (tile.x !== lastTile.x || tile.y !== lastTile.y) {
+                    // Check if adjacent
+                    if (this.isAdjacent(lastTile.x, lastTile.y, tile.x, tile.y)) {
+                        this.touchDragPath.push({ x: tile.x, y: tile.y });
+
+                        // Convert drag path to moves
+                        const selectedTile = this.getTile(this.selectedTile.x, this.selectedTile.y);
+                        if (selectedTile && selectedTile.owner === this.playerNumber && selectedTile.army > 1) {
+                            // Queue the move based on direction
+                            const dx = tile.x - lastTile.x;
+                            const dy = tile.y - lastTile.y;
+
+                            if (dx !== 0 || dy !== 0) {
+                                this.moveSelected(dx, dy);
+                            }
+                        }
+
+                        this.render();
+                    }
+                }
+            } else if (e.touches.length === 2) {
+                // Pinch zoom
+                const dx = e.touches[0].clientX - e.touches[1].clientX;
+                const dy = e.touches[0].clientY - e.touches[1].clientY;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                if (lastTouchDistance > 0) {
+                    const scale = distance / lastTouchDistance;
+                    const rect = this.canvas.getBoundingClientRect();
+                    const centerX = (e.touches[0].clientX + e.touches[1].clientX) / 2 - rect.left;
+                    const centerY = (e.touches[0].clientY + e.touches[1].clientY) / 2 - rect.top;
+
+                    this.setZoom(this.zoom * scale, centerX * (this.canvas.width / rect.width), centerY * (this.canvas.height / rect.height));
+                    this.render();
+                }
+
+                lastTouchDistance = distance;
+            }
+        }, { passive: false });
+
+        this.canvas.addEventListener('touchend', (e) => {
+            e.preventDefault();
+
+            if (e.touches.length === 0) {
+                this.touchStartTile = null;
+                this.touchDragPath = [];
+                lastTouchDistance = 0;
+            }
+        }, { passive: false });
 
         document.addEventListener('keydown', (e) => {
             if (this.gameOver) return;

@@ -50,6 +50,11 @@ class HyperCommanders {
         document.getElementById('btn-surrender').addEventListener('click', () => this.surrender());
         document.getElementById('btn-toggle-queue').addEventListener('click', () => this.toggleQueue());
 
+        // Zoom buttons
+        document.getElementById('btn-zoom-in').addEventListener('click', () => this.zoomIn());
+        document.getElementById('btn-zoom-out').addEventListener('click', () => this.zoomOut());
+        document.getElementById('btn-zoom-reset').addEventListener('click', () => this.resetZoom());
+
         // Game over buttons
         document.getElementById('btn-play-again').addEventListener('click', () => this.playAgain());
         document.getElementById('btn-main-menu').addEventListener('click', () => this.returnToMenu());
@@ -308,6 +313,33 @@ class HyperCommanders {
         if (!this.game.queueEnabled) {
             this.game.moveQueue = [];
         }
+    }
+
+    zoomIn() {
+        if (!this.game) return;
+        const canvas = this.game.canvas;
+        const rect = canvas.getBoundingClientRect();
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+        this.game.setZoom(this.game.zoom * 1.2, centerX, centerY);
+        this.game.render();
+    }
+
+    zoomOut() {
+        if (!this.game) return;
+        const canvas = this.game.canvas;
+        const rect = canvas.getBoundingClientRect();
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+        this.game.setZoom(this.game.zoom * 0.8, centerX, centerY);
+        this.game.render();
+    }
+
+    resetZoom() {
+        if (!this.game) return;
+        this.game.zoom = 1;
+        this.game.centerOnGeneral();
+        this.game.render();
     }
 
     endGame(winner) {

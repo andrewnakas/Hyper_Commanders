@@ -47,7 +47,8 @@
                         <li>All your land generates +1 troop every 25 turns</li>
                         <li>Capture the enemy General to win!</li>
                     </ul>
-                    <p class="controls-hint">Controls: Click to select/move, or use WASD/arrows to queue moves. Press Q to cancel queued path.</p>
+                    <p class="controls-hint"><strong>Desktop:</strong> Click to select/move, WASD/arrows to queue moves, Q to cancel. Right-click or Shift+drag to pan, scroll to zoom.</p>
+                    <p class="controls-hint"><strong>Mobile:</strong> Tap to select, drag to queue moves. Pinch to zoom, two-finger drag to pan.</p>
                 </div>
             </div>
         </div>
@@ -74,6 +75,11 @@
 
             <div id="game-container">
                 <canvas id="game-canvas"></canvas>
+                <div class="zoom-controls">
+                    <button id="btn-zoom-in" class="zoom-btn" title="Zoom In">+</button>
+                    <button id="btn-zoom-out" class="zoom-btn" title="Zoom Out">−</button>
+                    <button id="btn-zoom-reset" class="zoom-btn" title="Reset View">⌂</button>
+                </div>
             </div>
 
             <div class="game-footer">

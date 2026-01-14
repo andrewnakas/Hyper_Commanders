@@ -278,11 +278,55 @@ body {
     align-items: center;
     overflow: hidden;
     background: var(--fog);
+    position: relative;
+    touch-action: none;
 }
 
 #game-canvas {
     max-width: 100%;
     max-height: 100%;
+    touch-action: none;
+    cursor: grab;
+}
+
+#game-canvas:active {
+    cursor: grabbing;
+}
+
+.zoom-controls {
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 10;
+}
+
+.zoom-btn {
+    width: 44px;
+    height: 44px;
+    border: none;
+    border-radius: 8px;
+    background: rgba(26, 26, 46, 0.9);
+    color: var(--text-primary);
+    font-size: 1.5rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.zoom-btn:hover {
+    background: rgba(36, 36, 56, 0.95);
+    transform: scale(1.05);
+}
+
+.zoom-btn:active {
+    transform: scale(0.95);
 }
 
 .game-footer {
@@ -380,5 +424,27 @@ body {
 
     .instructions {
         font-size: 0.85rem;
+    }
+
+    .zoom-controls {
+        bottom: 10px;
+        right: 10px;
+    }
+
+    .zoom-btn {
+        width: 40px;
+        height: 40px;
+        font-size: 1.3rem;
+    }
+
+    .game-header {
+        flex-wrap: wrap;
+    }
+
+    .game-info {
+        width: 100%;
+        text-align: center;
+        order: -1;
+        padding: 0.3rem 0;
     }
 }
